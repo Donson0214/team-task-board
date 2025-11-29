@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  name            String?
+  password        String?
+  imageUrl        String?
+  createdAt       DateTime          @default(now())
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  boardsAssigned  Task[]            @relation("TaskAssignee")
+  comments        TaskComment[]
+  workspacesOwned Workspace[]       @relation("WorkspaceOwner")
+  memberships     WorkspaceMember[]
+}
+
+model Workspace {
+  id        String            @id @default(uuid())
+  name      String
+  ownerId   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  auditLogs AuditLog[]
+  boards    Board[]
+  owner     User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members   WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id])
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, userId])
+}
+
+model Board {
+  id          String    @id @default(uuid())
+  name        String
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  columns     Column[]
+  tasks       Task[]
+}
+
+model Column {
+  id        String   @id @default(uuid())
+  title     String
+  order     Int
+  boardId   String
+  createdAt DateTime @default(now())
+  board     Board    @relation(fields: [boardId], references: [id])
+  tasks     Task[]
+}
+
+model Task {
+  id            String         @id @default(uuid())
+  title         String
+  description   String?
+  status        String?
+  dueDate       DateTime?
+  boardId       String
+  columnId      String
+  assigneeId    String?
+  createdAt     DateTime       @default(now())
+  priority      TaskPriority?
+  attachments   Attachment[]
+  auditLogs     AuditLog[]     @relation("TaskAuditLogs")
+  notifications Notification[] @relation("TaskToNotification")
+  assignee      User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  board         Board          @relation(fields: [boardId], references: [id])
+  column        Column         @relation(fields: [columnId], references: [id])
+  comments      TaskComment[]
+  labels        Label[]        @relation("TaskLabels")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  taskId    String
+  fileUrl   String
+  fileName  String
+  fileType  String?
+  fileSize  Int?
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  taskId    String?
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  task      Task?    @relation("TaskToNotification", fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  taskId      String?
+  action      String
+  details     String?
+  createdAt   DateTime  @default(now())
+  userId      String
+  task        Task?     @relation("TaskAuditLogs", fields: [taskId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model Label {
+  id    String @id @default(uuid())
+  name  String
+  color String
+  tasks Task[] @relation("TaskLabels")
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+  GUEST
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
